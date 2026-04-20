@@ -1,28 +1,27 @@
 import ee
-import geemap
-import os
 from datetime import datetime, timedelta
-import json
 
-class AgriGuardDataCollector:
+class EOSpectralDataCollector:
     def __init__(self):
-        """Initialize Earth Engine and setup data collection"""
+        """Initialize Earth Engine for Global Spectral Bias Audit"""
         ee.Initialize()
+        # Using the exact Sentinel-2 Surface Reflectance dataset from your thesis
         self.s2_collection = 'COPERNICUS/S2_SR_HARMONIZED'
-        self.landsat_collection = 'LANDSAT/LC08/C02/T1_L2'
         
     def define_study_areas(self):
-        """Define agricultural regions in Karnataka for disease monitoring"""
+        """Define the cross-continental validation regions"""
         study_areas = {
-            'mysore_tomato': ee.Geometry.Rectangle([76.5, 12.2, 77.0, 12.7]),
-            'belgaum_cotton': ee.Geometry.Rectangle([74.4, 15.8, 75.0, 16.3]),
-            'hassan_coffee': ee.Geometry.Rectangle([75.8, 13.0, 76.3, 13.5]),
-            'mandya_sugarcane': ee.Geometry.Rectangle([76.8, 12.4, 77.3, 12.9])
+            # High-Biomass Baseline Training Area
+            'california_baseline': ee.Geometry.Rectangle([-120.5, 36.5, -119.5, 37.5]),
+            # 1.1 Billion Pixel Scalability Test Area
+            'punjab_scale': ee.Geometry.Rectangle([75.0, 30.5, 76.0, 31.5]),
+            # High-Albedo Arid Stress Test Area (Where the bias was found)
+            'australia_stress': ee.Geometry.Rectangle([116.0, -32.0, 117.0, -31.0])
         }
         return study_areas
     
     def calculate_vegetation_indices(self, image):
-        """Calculate multiple vegetation indices for disease detection"""
+        """Calculate the multi-modal spectral pathway features"""
         # NDVI - Normalized Difference Vegetation Index
         ndvi = image.normalizedDifference(['B8', 'B4']).rename('NDVI')
         
@@ -36,7 +35,7 @@ class AgriGuardDataCollector:
             }
         ).rename('EVI')
         
-        # SAVI - Soil Adjusted Vegetation Index
+        # SAVI - Soil Adjusted Vegetation Index (Crucial for the Australia audit)
         savi = image.expression(
             '((NIR - RED) / (NIR + RED + 0.5)) * 1.5',
             {
@@ -45,30 +44,17 @@ class AgriGuardDataCollector:
             }
         ).rename('SAVI')
         
-        # REP - Red Edge Position (disease sensitive)
-        rep = image.expression(
-            '700 + 40 * ((((RED + RE3) / 2) - RE1) / (RE2 - RE1))',
-            {
-                'RED': image.select('B4').divide(10000),
-                'RE1': image.select('B5').divide(10000),
-                'RE2': image.select('B6').divide(10000),
-                'RE3': image.select('B7').divide(10000)
-            }
-        ).rename('REP')
-        
-        return image.addBands([ndvi, evi, savi, rep])
+        return image.addBands([ndvi, evi, savi])
     
-    def collect_temporal_data(self, geometry, start_date, end_date, crop_type='tomato'):
-        """Collect time-series data for disease monitoring"""
+    def collect_temporal_data(self, geometry, start_date, end_date):
+        """Collect cloud-free monthly temporal composites"""
         
-        # Get Sentinel-2 collection
         collection = (ee.ImageCollection(self.s2_collection)
                      .filterBounds(geometry)
                      .filterDate(start_date, end_date)
                      .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 15))
                      .map(self.calculate_vegetation_indices))
         
-        # Create composite for each month
         months = []
         start = datetime.strptime(start_date, '%Y-%m-%d')
         end = datetime.strptime(end_date, '%Y-%m-%d')
@@ -76,103 +62,51 @@ class AgriGuardDataCollector:
         current = start
         while current < end:
             month_start = current.strftime('%Y-%m-%d')
-            month_end = (current.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
-            month_end = month_end.strftime('%Y-%m-%d')
+            # Calculate end of month safely
+            next_month = current.replace(day=28) + timedelta(days=4)
+            month_end = (next_month - timedelta(days=next_month.day)).strftime('%Y-%m-%d')
             
             monthly_composite = (collection
                                .filterDate(month_start, month_end)
-                               .median()
-                               .set('system:time_start', ee.Date(month_start).millis())
-                               .set('month', current.month)
-                               .set('year', current.year))
+                               .median() # Median filtering removes cloud shadows/noise
+                               .set('system:time_start', ee.Date(month_start).millis()))
             
             months.append(monthly_composite)
-            current = current.replace(day=1) + timedelta(days=32)
-            current = current.replace(day=1)
+            current = next_month.replace(day=1)
         
         return ee.ImageCollection(months)
     
-    def export_training_data(self, region_name, geometry, start_date, end_date):
-        """Export data for model training"""
-        
-        # Collect temporal data
+    def export_inference_tensors(self, region_name, geometry, start_date, end_date):
+        """Export data for the Streamlit Docker deployment"""
         time_series = self.collect_temporal_data(geometry, start_date, end_date)
         
-        # Create export task
         task = ee.batch.Export.image.toDrive(
             image=time_series.toBands(),
-            description=f'agriguard_{region_name}_{start_date}_{end_date}',
-            folder='AgriGuard_Data',
+            description=f'eo_audit_{region_name}_{start_date}_{end_date}',
+            folder='AgriSight_Raw_Tiffs',
             region=geometry,
-            scale=10,  # 10m resolution
+            scale=10,  # 10m Sentinel-2 resolution
             crs='EPSG:4326',
-            maxPixels=1e9
+            maxPixels=1e10 # Expanded for the Punjab billion-pixel run
         )
         
         task.start()
-        print(f"Export started for {region_name}")
+        print(f"Export started to Google Drive for: {region_name}")
         return task
-    
-    def simulate_disease_outbreak(self, healthy_timeseries, disease_type='blight'):
-        """Simulate disease outbreak patterns for training data"""
-        
-        disease_params = {
-            'blight': {'ndvi_drop': 0.3, 'evi_drop': 0.25, 'onset_speed': 14},
-            'rust': {'ndvi_drop': 0.2, 'evi_drop': 0.15, 'onset_speed': 21},
-            'mosaic': {'ndvi_drop': 0.4, 'evi_drop': 0.35, 'onset_speed': 7}
-        }
-        
-        params = disease_params[disease_type]
-        
-        def apply_disease_effect(image):
-            # Get image date
-            date = ee.Date(image.get('system:time_start'))
-            outbreak_date = ee.Date('2024-06-01')  # Simulate outbreak start
-            
-            # Calculate days since outbreak
-            days_since = date.difference(outbreak_date, 'day')
-            
-            # Disease progression (sigmoid function)
-            progression = ee.Image(1).divide(
-                ee.Image(1).add(
-                    ee.Image(-1).multiply(days_since.divide(params['onset_speed'])).exp()
-                )
-            )
-            
-            # Apply disease effects
-            ndvi_diseased = image.select('NDVI').multiply(
-                ee.Image(1).subtract(progression.multiply(params['ndvi_drop']))
-            )
-            
-            evi_diseased = image.select('EVI').multiply(
-                ee.Image(1).subtract(progression.multiply(params['evi_drop']))
-            )
-            
-            return image.addBands([ndvi_diseased.rename('NDVI_diseased'), 
-                                 evi_diseased.rename('EVI_diseased'),
-                                 progression.rename('disease_severity')])
-        
-        return healthy_timeseries.map(apply_disease_effect)
 
 # Test the collector
 if __name__ == "__main__":
-    collector = AgriGuardDataCollector()
+    collector = EOSpectralDataCollector()
     study_areas = collector.define_study_areas()
     
-    # Test with Mysore tomato region
-    mysore_region = study_areas['mysore_tomato']
+    # Test with the California Baseline
+    california = study_areas['california_baseline']
     
-    # Collect recent 6 months of data
+    # Collect a test composite
     time_series = collector.collect_temporal_data(
-        mysore_region, 
-        '2024-06-01', 
-        '2024-12-01', 
-        'tomato'
+        california, 
+        '2025-06-01', 
+        '2025-08-01'
     )
     
-    print(f"Collected {time_series.size().getInfo()} monthly composites")
-    
-    # Start export (this will create files in your Google Drive)
-    # task = collector.export_training_data('mysore_tomato', mysore_region, '2024-06-01', '2024-12-01')
-    
-    print("Data collection setup complete!")
+    print(f"Validated pipeline. Generated {time_series.size().getInfo()} temporal composites.")
