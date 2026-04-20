@@ -2,7 +2,7 @@
 **Making Crop Health Diagnostics Reliable Across the Globe**
 
 ## Overview
-This repository contains the code and diagnostic dashboard for AgriSight, an AI tool designed to predict crop health from space. 
+This repository contains the code and diagnostic dashboard for **eo-spectral-bias-audit**, an AI architecture designed to predict crop health from space. 
 
 Machine learning models are increasingly used in agriculture to tell farmers if their crops are stressed or diseased. However, these models are usually trained in lush, high-biomass areas (like the United States). When deployed globally, they often fail. This project builds a crop-health AI and explicitly stress-tests it across three different continents to uncover its hidden flaws before it reaches the farmer.
 
