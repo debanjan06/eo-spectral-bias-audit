@@ -1,29 +1,8 @@
+# Ignore giant raw satellite data
+data/raw/*.tif
+data/raw/**/*.tif
+
+# Ignore temporary python files
 __pycache__/
-*.py[cod]
-*$py.class
 *.pyc
-.Python
-venv/
-env/
 .venv/
-data/raw/*
-*.csv
-*.tif
-*.tiff
-mlruns/
-*.pth
-models/checkpoints/
-.vscode/
-.idea/
-*.swp
-*.swo
-.DS_Store
-Thumbs.db
-.git/
-.gitignore
-README.md
-*.md
-*.ipynb
-.ipynb_checkpoints/
-results/*.png
-results/*.pdf

@@ -1,9 +1,0 @@
-{
-  "project": "AgriGuard Disease Detection",
-  "mlflow_setup": "Clean, project-specific tracking",
-  "run_id": "ec42b9dc7b11495c952c6681b3dd14b9",
-  "mlflow_directory": "C:\\Users\\DEBANJAN SHIL\\Documents\\AgriGuard\\agriguard_mlruns",
-  "experiment_name": "AgriGuard_Crop_Disease_Detection",
-  "ui_command": "mlflow ui --backend-store-uri C:\\Users\\DEBANJAN SHIL\\Documents\\AgriGuard\\agriguard_mlruns",
-  "status": "Production Ready MLOps Stack"
-}
