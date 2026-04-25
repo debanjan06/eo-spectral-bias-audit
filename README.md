@@ -66,7 +66,7 @@ EO-Spectral-Bias-Audit/
 ## Getting Started
 
 ```bash
-git clone https://github.com/your-username/EO-Spectral-Bias-Audit.git
+git clone https://github.com/debanjan06/eo-spectral-bias-audit.git
 cd EO-Spectral-Bias-Audit
 pip install -r requirements.txt
 ```
