@@ -40,6 +40,14 @@ The following visualizations demonstrate the model's performance in the training
 
 ---
 
+## Proposed Mitigation: Gated Multimodal Fusion
+
+To address the discovered bias, this repository includes a proposed architectural fix in `src/models/gated_fusion.py`.
+
+Instead of simple concatenation, we implement a **Gated Multimodal Unit (GMU)**. This uses a learned sigmoid-activated gate to dynamically weight modalities. If the satellite imagery and weather data conflict, the gate allows the model to suppress the biased tabular signal, forcing the network to maintain spatial sensitivity.
+
+---
+
 ## Technical Stack & Architecture
 
 | Component | Details |
@@ -59,6 +67,8 @@ The Late-Fusion design processes the satellite image stream and the meteorologic
 eo-spectral-bias-audit/
 │
 ├── src/
+│   ├── models/
+│   │   └── gated_fusion.py     # Robust architecture using Gated Multimodal Units
 │   ├── train.py                # Training loop for regional domain adaptation
 │   ├── evaluate_baseline.py    # Evaluation engine for control-group testing
 │   └── evaluate_audit.py       # Scientific core: measures model bias & OOD failure rates
@@ -77,6 +87,7 @@ eo-spectral-bias-audit/
 - **`train.py`** — Trains the Multi-Modal CNN on a source domain. Configurable for regional dataset inputs.
 - **`evaluate_baseline.py`** — Evaluation engine for control-group testing on the training distribution.
 - **`evaluate_audit.py`** — The scientific core. Injects synthetic OOD spatial signals while holding meteorological inputs constant, isolating and measuring the model's modal bias.
+- **`gated_fusion.py`** — Proposed GMU architecture that dynamically suppresses the biased tabular signal when it conflicts with spatial evidence.
 
 ---
 
@@ -98,7 +109,7 @@ python src/evaluate_audit.py
 
 ## Why This Matters
 
-Spectral bias of this kind is dangerous in precision agriculture and food security applications. A model deployed across climate zones may produce confident, incorrect crop health assessments based on weather alone. This audit framework is designed to surface these failures before production deployment and advocates for more robust techniques like Attention-Gated Fusion.
+Spectral bias of this kind is dangerous in precision agriculture and food security applications. A model deployed across climate zones may produce confident, incorrect crop health assessments based on weather alone. This audit framework is designed to surface these failures before production deployment and advocates for more robust techniques like Gated Multimodal Fusion.
 
 ---
 
