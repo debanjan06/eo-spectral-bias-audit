@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "Shil"
+    given-names: "Debanjan"
+title: "EO-Spectral-Bias-Audit: Quantifying Late-Fusion Vulnerabilities in Multi-Modal AgTech"
+date-released: 2026-04-26
+url: "https://github.com/debanjan06/eo-spectral-bias-audit"
