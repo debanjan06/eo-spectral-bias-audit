@@ -13,27 +13,26 @@ class AuditDataset(torch.utils.data.Dataset):
         return len(self.data_df)
     def __getitem__(self, idx):
         row = self.data_df.iloc[idx]
-        # Using dummy spatial data to isolate the tabular "Weather Prior" effect
+        # Generate dummy spatial data to isolate the influence of weather priors
         spatial_tensor = torch.randn(4, 32, 32)
         
-        # Load the Punjab tabular data
+        # Extract features for the audit regions
         tabular_tensor = torch.tensor([
             row.get('NDVI', 0.4), row.get('SAVI', 0.3), row.get('EVI', 0.25), 
             row.get('temp_max', 28.0), row.get('rainfall', 5.0), row.get('humidity', 45.0)
         ], dtype=torch.float32)
         return spatial_tensor, tabular_tensor, torch.tensor(-1, dtype=torch.long)
 
-def run_punjab_audit():
-    print("🌾 Initiating Punjab Wheat Belt Stress Test...")
+def run_regional_audit(region_name, csv_path, output_filename):
+    print(f"INFO: Initiating stress test for region: {region_name}")
     os.makedirs('results', exist_ok=True)
     
-    # Load model weights
+    # Initialize model and load trained weights
     model = MultiModalCNN(num_classes=3)
     model.load_state_dict(torch.load('models/best_baseline_model.pth', weights_only=True))
     model.eval()
     
-    # Point to Punjab CSV
-    dataset = AuditDataset(csv_path='data/raw/punjab_wheat_belt_tile_weather.csv')
+    dataset = AuditDataset(csv_path=csv_path)
     audit_loader = DataLoader(dataset, batch_size=32, shuffle=False)
     
     healthy_count = 0
@@ -48,16 +47,15 @@ def run_punjab_audit():
 
     bias_rate = (healthy_count / total) * 100
     
-    # --- GENERATE COMPARISON PLOT ---
+    # Visualization configuration
     plt.figure(figsize=(10, 6))
     sns.set_style("whitegrid")
     
-    # Comparison: California (72.3%) vs Punjab result
-    categories = ['California (Control)', 'Punjab (Audit)']
+    categories = ['California (Control)', f'{region_name} (Audit)']
     values = [72.3, bias_rate]
     
     ax = sns.barplot(x=categories, y=values, palette=['#2ecc71', '#3498db'])
-    plt.title('Cross-Continental Audit: California vs. Punjab (Wheat Belt)', fontsize=14)
+    plt.title(f'Spectral Bias Audit: California vs. {region_name}', fontsize=14)
     plt.ylabel('Percentage of "Healthy" Predictions', fontsize=12)
     plt.ylim(0, 110)
     
@@ -65,10 +63,12 @@ def run_punjab_audit():
         ax.annotate(f'{p.get_height():.1f}%', (p.get_x() + p.get_width() / 2., p.get_height()), 
                     ha='center', va='center', xytext=(0, 9), textcoords='offset points', weight='bold')
 
-    plot_path = 'results/punjab_bias_audit_plot.png'
+    plot_path = f'results/{output_filename}'
     plt.savefig(plot_path)
-    print(f"✅ Punjab audit plot saved to: {plot_path}")
-    print(f"🚨 Punjab 'Healthy' Prediction Rate: {bias_rate:.2f}%")
+    print(f"SUCCESS: Audit complete. Results saved to: {plot_path}")
+    print(f"REPORT: {region_name} 'Healthy' Prediction Rate: {bias_rate:.2f}%")
 
 if __name__ == "__main__":
-    run_punjab_audit()
+    # Execute audits for verified regions
+    run_regional_audit("W. Australia", "data/raw/australia_dryland_tile_weather.csv", "spectral_bias_audit_plot.png")
+    run_regional_audit("Punjab", "data/raw/punjab_wheat_belt_tile_weather.csv", "punjab_bias_audit_plot.png")
