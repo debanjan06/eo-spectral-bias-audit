@@ -61,29 +61,26 @@ The Late-Fusion design processes the satellite image stream and the meteorologic
 
 ---
 
-## Repository Structure
+### Repository Structure
 
-```
+```text
 eo-spectral-bias-audit/
-│
 ├── src/
 │   ├── models/
-│   │   └── gated_fusion.py     # Proposed GMU architecture
+│   │   ├── multi_modal_cnn.py  # Baseline architecture
+│   │   └── gated_fusion.py     # Gated Multimodal Unit implementation
+│   ├── data_pipeline/
+│   │   ├── satellite_collector.py # Sentinel-2 ETL and cloud masking
+│   │   └── weather_collector.py   # Meteorological data cleaning (ffill/bfill)
+│   ├── dataset.py              # Multi-modal PyTorch Dataset (AgriSightDataset)
 │   ├── train.py                # Training loop for regional domain adaptation
-│   ├── evaluate_baseline.py    # Evaluation engine for control-group testing
-│   └── evaluate_audit.py       # Scientific core: measures model bias & OOD failure rates
-│
+│   ├── evaluate_baseline.py    # Control-group performance metrics
+│   └── evaluate_audit.py       # Global stress test and bias quantification
 ├── app/
-│   └── streamlit_app.py        # Diagnostic dashboard for interactive robustness analysis
-│
-├── models/                     # Trained weights (.pth) used for the global audit
-├── data/                       # Meteorological time-series and spatial metadata (see data/README.md)
-├── results/                    # Generated scientific plots and audit metrics
-│
-├── Dockerfile
-├── requirements.txt
-├── CITATION.cff
-└── LICENSE
+│   └── streamlit_app.py        # Diagnostic dashboard for robustness analysis
+├── models/                     # Serialized weights (.pth) for audit replication
+├── data/                       # Raw weather CSVs and processed spatial patches
+└── results/                    # Generated diagnostic plots and research evidence
 ```
 
 - **`gated_fusion.py`** — Proposed GMU architecture that dynamically suppresses biased tabular signals when they conflict with spatial evidence.
