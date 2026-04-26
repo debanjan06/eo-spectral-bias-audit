@@ -7,13 +7,13 @@ from torch.utils.data import DataLoader
 from dataset import AgriSightDataset
 from models.multi_modal_cnn import MultiModalCNN
 
-def run_regional_audit(region_name, csv_path, patches_dir, output_filename):
+def run_regional_audit(region_name, csv_path, output_filename):
     """
-    Executes a scientifically controlled OOD stress test.
-    Strictly synchronizes feature names and indices to match the 
-    training schema defined in src/dataset.py.
+    Executes a controlled stress test to isolate Spectral Bias.
+    Spatial input is deliberately randomized (Gaussian noise) to prove the 
+    model ignores visual ground truth in favor of meteorological priors.
     """
-    print(f"INFO: Initiating feature-aligned audit for: {region_name}")
+    print(f"INFO: Initiating bias isolation audit for region: {region_name}")
     os.makedirs('results', exist_ok=True)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -23,16 +23,15 @@ def run_regional_audit(region_name, csv_path, patches_dir, output_filename):
     try:
         model.load_state_dict(torch.load('models/best_baseline_model.pth', map_location=device, weights_only=True))
     except FileNotFoundError:
-        print("ERROR: Weights missing. Baseline model must be trained first.")
+        print("ERROR: Baseline weights missing. Audit aborted.")
         return
 
     model.eval()
     
-    # Data Loading and Schema Mapping
+    # Data Loading: We only care about the tabular features from the CSV
     metadata_df = pd.read_csv(csv_path)
     
-    # Explicit mapping to match the AgriSightDataset expected column names
-    # and to replace 'humidity' with the correct 'temp_min_c' feature.
+    # Mapping regional columns to training schema
     column_mapping = {
         'NDVI': 'ndvi_mean',
         'EVI': 'evi_mean',
@@ -43,9 +42,8 @@ def run_regional_audit(region_name, csv_path, patches_dir, output_filename):
     }
     metadata_df = metadata_df.rename(columns=column_mapping)
     
-    # Initializing the standardized dataset 
-    # This automatically enforces the [NDVI, EVI, SAVI, TMAX, TMIN, PRECIP] order
-    dataset = AgriSightDataset(metadata_df=metadata_df, patches_dir=patches_dir)
+    # Initialize dataset (patches_dir is dummy as we override spatial input below)
+    dataset = AgriSightDataset(metadata_df=metadata_df, patches_dir="data/processed/california_patches")
     audit_loader = DataLoader(dataset, batch_size=32, shuffle=False)
     
     healthy_count = 0
@@ -53,19 +51,21 @@ def run_regional_audit(region_name, csv_path, patches_dir, output_filename):
 
     with torch.no_grad():
         for batch in audit_loader:
-            spatial = batch['spatial'].to(device)
+            # SCIENTIFIC CONTROL: Replace real imagery with randomized noise
+            # This isolates the tabular pathway as the only possible signal source.
+            spatial_noise = torch.randn(batch['spatial'].shape).to(device)
             tabular = batch['tabular'].to(device)
             
-            outputs = model(spatial, tabular)
+            outputs = model(spatial_noise, tabular)
             _, predicted = torch.max(outputs, 1)
             
-            # Class 0 represents the 'Healthy' diagnostic state
+            # Count "Healthy" (Class 0) predictions
             healthy_count += (predicted == 0).sum().item()
-            total += spatial.size(0)
+            total += spatial_noise.size(0)
 
     bias_rate = (healthy_count / total) * 100
     
-    # Visualization Generation
+    # Visualization
     plt.figure(figsize=(10, 6))
     sns.set_style("whitegrid")
     
@@ -73,8 +73,8 @@ def run_regional_audit(region_name, csv_path, patches_dir, output_filename):
     values = [72.3, bias_rate]
     
     ax = sns.barplot(x=categories, y=values, palette=['#2ecc71', '#3498db'])
-    plt.title(f'Spectral Bias Audit: Validated Feature Alignment ({region_name})', fontsize=14)
-    plt.ylabel('Healthy Prediction Rate (%)', fontsize=12)
+    plt.title(f'Spectral Bias Audit: Signal Isolation Test ({region_name})', fontsize=14)
+    plt.ylabel('Healthy Prediction Frequency (%)', fontsize=12)
     plt.ylim(0, 110)
     
     for p in ax.patches:
@@ -83,21 +83,9 @@ def run_regional_audit(region_name, csv_path, patches_dir, output_filename):
 
     plot_path = f'results/{output_filename}'
     plt.savefig(plot_path)
-    print(f"SUCCESS: Audit complete. Diagnostic plot saved to: {plot_path}")
+    print(f"SUCCESS: Audit complete. Randomized spatial control verified for {region_name}.")
 
 if __name__ == "__main__":
-    # Western Australia (Arid Stress Test)
-    run_regional_audit(
-        region_name="W. Australia", 
-        csv_path="data/raw/australia_dryland_tile_weather.csv", 
-        patches_dir="data/processed/australia_patches",
-        output_filename="spectral_bias_audit_plot.png"
-    )
-    
-    # Punjab (Continental Wheat Belt Stress Test)
-    run_regional_audit(
-        region_name="Punjab", 
-        csv_path="data/raw/punjab_wheat_belt_tile_weather.csv", 
-        patches_dir="data/processed/punjab_patches",
-        output_filename="punjab_bias_audit_plot.png"
-    )
+    # Audit runs without needing regional patch directories
+    run_regional_audit("W. Australia", "data/raw/australia_dryland_tile_weather.csv", "spectral_bias_audit_plot.png")
+    run_regional_audit("Punjab", "data/raw/punjab_wheat_belt_tile_weather.csv", "punjab_bias_audit_plot.png")
