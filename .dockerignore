@@ -7,6 +7,7 @@ env/
 .vscode/
 
 # Project artifacts
+# Exclude local weights because the Dockerfile downloads them via curl
 models/*.pth
 results/*.png
 data/processed/
