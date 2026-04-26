@@ -21,8 +21,8 @@ The result was a complete diagnostic collapse in out-of-distribution environment
 | Validation Zone | Environment Type | "Healthy" Prediction Rate | Status |
 | :--- | :--- | :--- | :--- |
 | California (Control) | Mediterranean / High Biomass | 72.3% (Balanced) | Baseline Logic Verified |
-| W. Australia (Audit) | Arid / Bare Earth / Low NDVI | 100.0% | Spectral Bias Confirmed |
-| Punjab (Audit) | Productive Wheat Belt | 100.0% | Weather Prior Over-reliance |
+| W. Australia (Audit) | Arid / Bare Earth / Low NDVI | 100.0% | Catastrophic Bias Confirmed |
+| Punjab (Audit) | Productive Wheat Belt | 100.0% | Catastrophic Bias Confirmed |
 
 > **Scientific Finding:** Despite spatial inputs showing 100% bare earth (Australia) or distinct local crop signatures (Punjab), the model predicted `"Healthy"` with 100% frequency. This proves the Late-Fusion mechanism developed a mathematical over-reliance on meteorological priors — effectively ignoring the satellite imagery entirely when weather conditions appeared acceptable.
 
@@ -44,7 +44,7 @@ The following visualizations demonstrate the model's performance in the training
 
 To address the discovered bias, this repository includes a proposed architectural fix in `src/models/gated_fusion.py`.
 
-Instead of simple concatenation, we implement a **Gated Multimodal Unit (GMU)**. This uses a learned sigmoid-activated gate to dynamically weight modalities. If the satellite imagery and weather data conflict, the gate allows the model to suppress the biased tabular signal, forcing the network to maintain spatial sensitivity.
+Instead of simple concatenation, we implement a **Gated Multimodal Unit (GMU)**. This uses a learned sigmoid-activated gate to dynamically weight modalities. If the satellite imagery and weather data conflict, the gate allows the model to suppress the biased tabular signal, forcing the network to maintain spatial sensitivity and prevent "hallucinated" health metrics.
 
 ---
 
@@ -68,14 +68,16 @@ eo-spectral-bias-audit/
 │
 ├── src/
 │   ├── models/
-│   │   └── gated_fusion.py     # Robust architecture using Gated Multimodal Units
+│   │   └── gated_fusion.py     # Proposed GMU architecture
 │   ├── train.py                # Training loop for regional domain adaptation
 │   ├── evaluate_baseline.py    # Evaluation engine for control-group testing
 │   └── evaluate_audit.py       # Scientific core: measures model bias & OOD failure rates
 │
-├── app/                        # Inference and visualization application
-├── models/                     # Trained weights (.pth) used for the audit
-├── data/                       # Meteorological time-series and spatial metadata
+├── app/
+│   └── streamlit_app.py        # Diagnostic dashboard for interactive robustness analysis
+│
+├── models/                     # Trained weights (.pth) used for the global audit
+├── data/                       # Meteorological time-series and spatial metadata (see data/README.md)
 ├── results/                    # Generated scientific plots and audit metrics
 │
 ├── Dockerfile
@@ -84,10 +86,11 @@ eo-spectral-bias-audit/
 └── LICENSE
 ```
 
+- **`gated_fusion.py`** — Proposed GMU architecture that dynamically suppresses biased tabular signals when they conflict with spatial evidence.
 - **`train.py`** — Trains the Multi-Modal CNN on a source domain. Configurable for regional dataset inputs.
 - **`evaluate_baseline.py`** — Evaluation engine for control-group testing on the training distribution.
 - **`evaluate_audit.py`** — The scientific core. Injects synthetic OOD spatial signals while holding meteorological inputs constant, isolating and measuring the model's modal bias.
-- **`gated_fusion.py`** — Proposed GMU architecture that dynamically suppresses the biased tabular signal when it conflicts with spatial evidence.
+- **`streamlit_app.py`** — Interactive diagnostic dashboard for robustness analysis.
 
 ---
 
@@ -116,3 +119,4 @@ Spectral bias of this kind is dangerous in precision agriculture and food securi
 ## License
 
 MIT License. See `LICENSE` for details.
+```
