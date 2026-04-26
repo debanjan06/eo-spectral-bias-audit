@@ -1,6 +1,18 @@
-fastapi
-uvicorn
-torch
-numpy
-pandas
-python-multipart
+# Core Frameworks
+torch>=2.0.0
+torchvision
+pytorch-lightning>=2.0.0
+
+# Data Science & Analysis
+numpy>=1.24.0
+pandas>=2.2.0
+scikit-learn>=1.3.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Earth Observation & APIs
+earthengine-api>=0.1.350
+requests>=2.31.0
+
+# Deployment & Dashboard
+streamlit>=1.25.0
