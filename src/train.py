@@ -19,7 +19,7 @@ def train_model():
     
     # Data Loading Strategy
     # Using the standardized naming convention established in src/dataset.py
-    metadata_df = pd.read_csv('data/processed/agriguard_training_dataset.csv')
+    metadata_df = pd.read_csv('data/processed/agrisight_training_dataset.csv')
     patches_dir = 'data/processed/california_patches'
     
     dataset = AgriSightDataset(metadata_df=metadata_df, patches_dir=patches_dir)
