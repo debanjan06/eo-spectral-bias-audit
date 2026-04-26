@@ -1,8 +1,15 @@
-# Ignore giant raw satellite data
-data/raw/*.tif
-data/raw/**/*.tif
-
-# Ignore temporary python files
+# Local environments
 __pycache__/
-*.pyc
 .venv/
+env/
+.ipynb_checkpoints/
+.git/
+.vscode/
+
+# Project artifacts
+models/*.pth
+results/*.png
+data/processed/
+
+# System files
+.DS_Store
