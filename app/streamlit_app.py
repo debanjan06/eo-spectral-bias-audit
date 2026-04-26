@@ -7,6 +7,7 @@ from src.models.multi_modal_cnn import MultiModalCNN
 
 def load_model():
     model = MultiModalCNN(num_classes=3)
+    # weights_only=True is used for security best practices
     model.load_state_dict(torch.load('models/best_baseline_model.pth', map_location=torch.device('cpu'), weights_only=True))
     model.eval()
     return model
@@ -18,44 +19,47 @@ def main():
     st.markdown("""
     ### Research Framework: Quantifying Spectral Bias
     This dashboard demonstrates how late-fusion architectures can develop an over-reliance on 
-    meteorological priors. By isolating the tabular and spatial pathways, we can visualize 
-    where the model fails to integrate visual evidence.
+    meteorological priors. By strictly aligning input features with the training distribution, 
+    we can visualize where the model fails to integrate visual evidence.
     """)
 
     model = load_model()
 
-    # Experimental Controls
+    # Experimental Controls: Aligned with [NDVI, EVI, SAVI, TMAX, TMIN, PRECIP]
     st.sidebar.header("Input Parameters")
-    st.sidebar.subheader("Meteorological Context")
-    temp = st.sidebar.slider("Maximum Temperature (C)", 10.0, 45.0, 28.0)
-    rainfall = st.sidebar.slider("Daily Rainfall (mm)", 0.0, 50.0, 5.0)
-    humidity = st.sidebar.slider("Relative Humidity (%)", 10.0, 90.0, 45.0)
     
     st.sidebar.subheader("Vegetation Indices")
-    ndvi = st.sidebar.slider("NDVI", 0.0, 1.0, 0.4)
-    savi = st.sidebar.slider("SAVI", 0.0, 1.0, 0.3)
-    evi = st.sidebar.slider("EVI", 0.0, 1.0, 0.25)
+    ndvi = st.sidebar.slider("NDVI (Normalized Difference)", 0.0, 1.0, 0.4)
+    evi = st.sidebar.slider("EVI (Enhanced Vegetation)", 0.0, 1.0, 0.25)
+    savi = st.sidebar.slider("SAVI (Soil Adjusted)", 0.0, 1.0, 0.3)
+    
+    st.sidebar.subheader("Meteorological Context")
+    temp_max = st.sidebar.slider("Maximum Temperature (C)", 10.0, 45.0, 28.0)
+    temp_min = st.sidebar.slider("Minimum Temperature (C)", 0.0, 30.0, 18.0)
+    rainfall = st.sidebar.slider("Daily Rainfall (mm)", 0.0, 50.0, 5.0)
 
-    # Prominent Research Notice
+    # Research Notice regarding Spatial Isolation
     st.warning("""
-    **Diagnostic Mode Active:** The spatial input (satellite patch) is currently randomized 
-    to isolate the influence of the weather sliders. If the model predicts 'Healthy' despite 
-    static or random pixels, it confirms a mathematical dependency on weather priors.
+    **Diagnostic Mode Active:** The spatial input is randomized to isolate the influence 
+    of the tabular pathway. If the prediction changes based on sliders while the image 
+    remains random, it confirms a mathematical dependency on weather priors.
     """)
 
     col1, col2 = st.columns(2)
 
     with col1:
         st.subheader("Spatial Input (Isolator)")
-        # Generating random pixels to prove the model ignores them
+        # Generating randomized pixels to prove imagery is being ignored
         dummy_image = np.random.rand(32, 32, 3)
         st.image(dummy_image, caption="Randomized RGB-NIR composite (Bias Test)", use_container_width=True)
 
     with col2:
         st.subheader("Model Inference")
         
+        # Prepare tensors with strict index alignment:
+        # [ndvi, evi, savi, temp_max, temp_min, rainfall]
         spatial_tensor = torch.randn(1, 4, 32, 32)
-        tabular_tensor = torch.tensor([[ndvi, savi, evi, temp, rainfall, humidity]], dtype=torch.float32)
+        tabular_tensor = torch.tensor([[ndvi, evi, savi, temp_max, temp_min, rainfall]], dtype=torch.float32)
 
         with torch.no_grad():
             outputs = model(spatial_tensor, tabular_tensor)
@@ -66,20 +70,20 @@ def main():
         
         st.metric(label="System Prediction", value=classes[prediction])
         
+        # Professional Probability Distribution Plot
         fig, ax = plt.subplots()
         ax.bar(classes, probabilities, color=['#2ecc71', '#f1c40f', '#e74c3c'])
-        ax.set_ylabel('Probability')
-        ax.set_title('Class Distribution')
+        ax.set_ylabel('Confidence Level')
+        ax.set_title('Class Probability Distribution')
         st.pyplot(fig)
 
     st.divider()
     st.subheader("Technical Conclusion")
     st.write("""
-    The behavior observed above—where the prediction changes based on temperature or rainfall 
-    sliders while the image remains random—is the definition of **Spectral Bias**. 
-    In production environments, this would lead to a 'False Healthy' reading in regions like 
-    Punjab or Australia where the weather profile is acceptable but the ground truth 
-    captured by satellite imagery shows significant crop failure.
+    The observed behavior surfaces **Spectral Bias**. When the model produces a 'Healthy' 
+    prediction based on favorable temperature and rainfall sliders—despite the 
+    underlying image being pure noise—it proves that the Late-Fusion architecture 
+    has prioritized low-dimensional tabular features over complex spatial ground truth.
     """)
 
 if __name__ == "__main__":
