@@ -1,36 +1,39 @@
-# src/dataset.py
 import torch
 from torch.utils.data import Dataset
 import numpy as np
 import pandas as pd
 from pathlib import Path
 
-class EOSpectralDataset(Dataset):
+class AgriSightDataset(Dataset):
     def __init__(self, metadata_df, patches_dir, transform=None):
+        """
+        Custom Dataset for multi-modal Earth Observation analysis.
+        metadata_df: DataFrame containing patch metadata and weather features.
+        patches_dir: Directory path containing .npy spatial patches.
+        """
         self.metadata = metadata_df.copy()
         self.patches_dir = Path(patches_dir)
         self.transform = transform
         
-        # Encoding labels for the PyTorch CrossEntropyLoss function
+        # Mapping string labels to integers for CrossEntropyLoss
         self.label_map = {'healthy': 0, 'stressed': 1, 'diseased': 2}
-        self.metadata['label_encoded'] = self.metadata['label'].map(self.label_map)
+        if 'label' in self.metadata.columns:
+            self.metadata['label_encoded'] = self.metadata['label'].map(self.label_map)
         
-        print(f"✅ Global Dataset Initialized: {len(self.metadata)} samples")
-        print(self.metadata['label'].value_counts())
-    
+        print(f"LOG: Dataset initialized with {len(self.metadata)} samples.")
+
     def __len__(self):
         return len(self.metadata)
     
     def __getitem__(self, idx):
         row = self.metadata.iloc[idx]
         
-        # ==========================================
-        # 1. SPATIAL PATHWAY (Sentinel-2 Imagery)
-        # ==========================================
+        # 1. Spatial Pathway: Sentinel-2 Imagery
+        # Loads 4-channel (RGB-NIR) patches
         patch_path = self.patches_dir / f"{row['patch_id']}.npy"
         patch = np.load(patch_path)
         
-        # Normalize Sentinel-2 10m Surface Reflectance
+        # Normalize 16-bit reflectance to [0, 1]
         patch = patch.astype(np.float32) / 10000.0  
         
         if self.transform:
@@ -38,21 +41,21 @@ class EOSpectralDataset(Dataset):
             
         spatial_tensor = torch.from_numpy(patch).float()
         
-        # ==========================================
-        # 2. TABULAR PATHWAY (Indices + Weather)
-        # ==========================================
-        # This is the exact tensor that feeds the MLP and caused the Australia bias!
+        # 2. Tabular Pathway: Meteorological Features
+        # These features were identified as the primary source of Spectral Bias
         tabular_features = [
-            row['ndvi_mean'],
-            row['evi_mean'],
-            row['savi_mean'],          # The key to diagnosing the arid-zone bias
-            row['temp_max_c'],         # Open-Meteo Maximum Temperature
-            row['temp_min_c'],         # Open-Meteo Minimum Temperature
-            row['rainfall_mm']         # Open-Meteo Precipitation
+            row.get('ndvi_mean', 0.0),
+            row.get('evi_mean', 0.0),
+            row.get('savi_mean', 0.0),
+            row.get('temp_max_c', 0.0),
+            row.get('temp_min_c', 0.0),
+            row.get('rainfall_mm', 0.0)
         ]
         
         tabular_tensor = torch.tensor(tabular_features, dtype=torch.float32)
-        label = torch.tensor(row['label_encoded'], dtype=torch.long)
+        
+        # Handle cases where labels might be missing (e.g., during raw audit)
+        label = torch.tensor(row.get('label_encoded', -1), dtype=torch.long)
         
         return {
             'spatial': spatial_tensor,
