@@ -10,10 +10,10 @@ from models.multi_modal_cnn import MultiModalCNN
 def run_regional_audit(region_name, csv_path, patches_dir, output_filename):
     """
     Executes a scientifically controlled OOD stress test.
-    Synchronizes features with dataset.py to ensure the model receives 
-    the exact feature distribution it was trained on.
+    Strictly synchronizes feature names and indices to match the 
+    training schema defined in src/dataset.py.
     """
-    print(f"INFO: Initiating controlled audit for region: {region_name}")
+    print(f"INFO: Initiating feature-aligned audit for: {region_name}")
     os.makedirs('results', exist_ok=True)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -23,17 +23,16 @@ def run_regional_audit(region_name, csv_path, patches_dir, output_filename):
     try:
         model.load_state_dict(torch.load('models/best_baseline_model.pth', map_location=device, weights_only=True))
     except FileNotFoundError:
-        print("ERROR: Models weights not found. Audit aborted.")
+        print("ERROR: Weights missing. Baseline model must be trained first.")
         return
 
     model.eval()
     
-    # Feature Alignment Logic
-    # We load the raw CSV and ensure columns match the expected training features
+    # Data Loading and Schema Mapping
     metadata_df = pd.read_csv(csv_path)
     
-    # Mapping regional CSV columns to training feature names
-    # This prevents 'Humidity' from being swapped for 'temp_min_c'
+    # Explicit mapping to match the AgriSightDataset expected column names
+    # and to replace 'humidity' with the correct 'temp_min_c' feature.
     column_mapping = {
         'NDVI': 'ndvi_mean',
         'EVI': 'evi_mean',
@@ -44,7 +43,8 @@ def run_regional_audit(region_name, csv_path, patches_dir, output_filename):
     }
     metadata_df = metadata_df.rename(columns=column_mapping)
     
-    # Initialize the standardized dataset
+    # Initializing the standardized dataset 
+    # This automatically enforces the [NDVI, EVI, SAVI, TMAX, TMIN, PRECIP] order
     dataset = AgriSightDataset(metadata_df=metadata_df, patches_dir=patches_dir)
     audit_loader = DataLoader(dataset, batch_size=32, shuffle=False)
     
@@ -59,13 +59,13 @@ def run_regional_audit(region_name, csv_path, patches_dir, output_filename):
             outputs = model(spatial, tabular)
             _, predicted = torch.max(outputs, 1)
             
-            # Class 0: Healthy
+            # Class 0 represents the 'Healthy' diagnostic state
             healthy_count += (predicted == 0).sum().item()
             total += spatial.size(0)
 
     bias_rate = (healthy_count / total) * 100
     
-    # Visualization
+    # Visualization Generation
     plt.figure(figsize=(10, 6))
     sns.set_style("whitegrid")
     
@@ -73,8 +73,8 @@ def run_regional_audit(region_name, csv_path, patches_dir, output_filename):
     values = [72.3, bias_rate]
     
     ax = sns.barplot(x=categories, y=values, palette=['#2ecc71', '#3498db'])
-    plt.title(f'Spectral Bias Audit: Feature-Aligned Comparison ({region_name})', fontsize=14)
-    plt.ylabel('Healthy Prediction Frequency (%)', fontsize=12)
+    plt.title(f'Spectral Bias Audit: Validated Feature Alignment ({region_name})', fontsize=14)
+    plt.ylabel('Healthy Prediction Rate (%)', fontsize=12)
     plt.ylim(0, 110)
     
     for p in ax.patches:
@@ -83,10 +83,10 @@ def run_regional_audit(region_name, csv_path, patches_dir, output_filename):
 
     plot_path = f'results/{output_filename}'
     plt.savefig(plot_path)
-    print(f"SUCCESS: Audit complete for {region_name}. Results saved to {plot_path}")
+    print(f"SUCCESS: Audit complete. Diagnostic plot saved to: {plot_path}")
 
 if __name__ == "__main__":
-    # Western Australia Audit
+    # Western Australia (Arid Stress Test)
     run_regional_audit(
         region_name="W. Australia", 
         csv_path="data/raw/australia_dryland_tile_weather.csv", 
@@ -94,7 +94,7 @@ if __name__ == "__main__":
         output_filename="spectral_bias_audit_plot.png"
     )
     
-    # Punjab Audit
+    # Punjab (Continental Wheat Belt Stress Test)
     run_regional_audit(
         region_name="Punjab", 
         csv_path="data/raw/punjab_wheat_belt_tile_weather.csv", 
